@@ -1,0 +1,2691 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This Template will provision measurements calculation resources.
+
+Transform:
+- AWS::Serverless-2016-10-31
+
+Parameters:
+
+  Environment:
+    Type: String
+
+  Domain:
+    Type: String
+    Default: api.getimmersion.com
+
+  UserPoolId:
+    Type: String
+
+  ApiVersion:
+    Type: String
+    Default: v2
+
+
+  IotEndpoint:
+    Description: IOT Endpoint
+    Type: String
+
+  MeasurementInfraStackName:
+    Type: String
+    Default: services-device-infra
+
+  AsyncInfraStackName:
+    Type: String
+    Default: services-async-infra
+
+  InfraStackName:
+    Type: String
+    Default: services-analysis-infra
+  ExportBucketName:
+    Type: String
+    Description: Export Immersion File Bucket Name
+    Default: services-analysis-export
+
+  CoreDependenciesLayer:
+    Type: String
+    Description: The list of layers to attach to functions
+
+  LambdaLayerxxhash:
+    Type: String
+    Description: The list of layers to attach to functions
+
+
+#https://garbe.io/blog/2017/07/17/cloudformation-hacks/
+
+  MeasurementTableName:
+    Type: String
+    Default: device
+
+Globals:
+  Function:
+    Runtime: python3.8
+    MemorySize: 512
+    Timeout: 100
+
+Resources:
+  AnalysisApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      Cors: "'*'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: False
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}
+        # swagger for returning cors headers
+      DefinitionBody:
+        openapi: '3.0.0'
+        info:
+          version: v2
+          title: !Sub services-analysis-${Environment}
+          description: This Api will is post event score analysis.
+        paths:
+          /v2/sync/pills/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetPillAnalysisSync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /v2/async/pills/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetPillAnalysisAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /v2/sync/key-moments/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetKeyMomentsSync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/async/key-moments/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetKeyMomentsAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          
+          /v2/sync/index/immersion/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetOverallImmersionIndexSync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /v2/async/index/immersion/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetOverallImmersionIndexAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /v2/sync/index/safety/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetOverallPsychSafetySync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/async/index/safety/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetOverallPsychSafetyAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/sync/immersion/contex-breakup/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetImmersionIndexContextBreakUp.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/async/immersion/contex-breakup/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetImmersionIndexContextBreakUpAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/sync/safety/contex-breakup/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetSafetyIndexContextBreakUp.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/async/safety/contex-breakup/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetSafetyIndexContextBreakUpAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/sync/immersion/range/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetImmersionRangeSync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/async/immersion/range/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetImmersionRangeAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/sync/safety/range/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetSafetyRangeSync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/sync/immersion/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetImmersionRangeIndexSync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''*'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /v2/async/immersion/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetImmersionRangeIndexAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /v2/sync/psych-readiness/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetPsychReadinessIndexSync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/async/psych-readiness/{tenantId}/{sessionCode}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetPsychReadinessIndexAsync.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/export/{tenantId}/{sessionCode}:
+            get:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetExportFile.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/export/{tenantId}:
+            post:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetBatchExportFile.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+
+          /v2/clips/{tenantId}/{sessionCode}/{clipId}:
+            get:
+              consumes:
+              - application/json
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                        type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                uri: 
+                 Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetClipCategoryBreakUp.Arn}/invocations
+                httpMethod: "POST" # post to lamba function
+                type: "aws_proxy" #proxy integration
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,UserId'''
+                      method.response.header.Access-Control-Allow-Methods: '''*'''
+                      method.response.header.Access-Control-Allow-Origin: '''*'''
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+                
+      GatewayResponses:
+        DEFAULT_4xx:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'*'"
+              Access-Control-Allow-Methods: "'*'"
+        DEFAULT_5xx:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'*'"
+              Access-Control-Allow-Methods: "'*'"
+
+  LambdaAnalysisAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole        
+      Policies:
+      - PolicyName: 'DynamodbMeasurementTablePolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+                - 'dynamodb:BatchWriteItem'
+                - 'dynamodb:PutItem'
+                - 'dynamodb:UpdateItem'
+              Resource: 
+                Fn::ImportValue: !Sub "${MeasurementInfraStackName}-${Environment}-dynamodb-measurement-arn"
+      - PolicyName: 'DynamodbAnalysisTablePolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+                - 'dynamodb:BatchWriteItem'
+                - 'dynamodb:PutItem'
+                - 'dynamodb:UpdateItem'
+              Resource: 
+                Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-core-analysis-arn"
+      - PolicyName: 'SubmitAsyncActivityRoleDynamoPolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+              Resource: 
+                Fn::ImportValue: !Sub "${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-arn"
+      - PolicyName: 'SubmitAsyncMappingRoleDynamoPolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+              Resource: 
+                Fn::ImportValue: !Sub "${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-arn"
+
+      - PolicyName: 'SubmitAsyncSequenceRoleDynamoPolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+              Resource: 
+                Fn::ImportValue: !Sub "${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-arn"
+      - PolicyName: 'SubmitAsyncSessionIdentifierRoleDynamoPolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+              Resource: 
+                Fn::ImportValue: !Sub "${AsyncInfraStackName}-${Environment}-dynamodb-async-session-identifier-arn"
+
+  LambdaExportBucketAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: "export-s3-access-policy"
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:PutObject
+            - s3:GetObject
+            Resource: !Sub arn:aws:s3:::${ExportBucketName}-${Environment}/*
+          - Effect: 'Allow'
+            Action:
+            - 's3:ListBucket'
+            Resource: !Sub arn:aws:s3:::${ExportBucketName}-${Environment} 
+      # - PolicyName: 'OnDemandCalculationStreamPolicy'
+      #   PolicyDocument:
+      #     Version: '2012-10-17'
+      #     Statement:
+      #       - Effect: 'Allow'
+      #         Action:
+      #           - 'kinesis:*'
+      #         Resource: 
+      #           !GetAtt OnDemandCalculationStream.Arn
+      # - PolicyName: 'OnDemandCalculationOutPutStream'
+      #   PolicyDocument:
+      #     Version: '2012-10-17'
+      #     Statement:
+      #       - Effect: 'Allow'
+      #         Action:
+      #           - 'kinesis:*'
+      #         Resource: 
+      #           !GetAtt OnDemandCalculationOutPutStream.Arn
+      # - PolicyName: 'Device-Measurement-DynamoDb-Access-Policy'
+      #   PolicyDocument:
+      #     Version: '2012-10-17'
+      #     Statement:
+      #       - Effect: 'Allow'
+      #         Action:
+      #           - 'dynamodb:DescribeStream'
+      #           - 'dynamodb:GetRecords'
+      #           - 'dynamodb:GetShardIterator'
+      #           - 'dynamodb:ListStreams'
+      #         Resource: #!Sub '${InfraStackName}-${Environment}-saas-ingestion-arn'
+      #           - Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-device-measurement-stream-arn" 
+                    #services-device-infra-dev-dynamodb-device-measurement-stream-arn
+  # OnDemandCalculationStream: 
+  #   Type: AWS::Kinesis::Stream 
+  #   Properties: 
+  #       Name: !Sub ${OnDemandCalculationStreamName}-${Environment}
+  #       RetentionPeriodHours: 24
+  #       ShardCount: 1
+  
+  # OnDemandCalculationOutPutStream: 
+  #   Type: AWS::Kinesis::Stream 
+  #   Properties: 
+  #       Name: !Sub ${OnDemandCalculationOutPutStreamName}-${Environment}
+  #       RetentionPeriodHours: 24
+  #       ShardCount: 1
+
+  GetPillAnalysisSync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-sync-pill-${Environment}
+      Handler: analysis.sync.pills.get
+      MemorySize: 512
+      Description: This function return pill.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/sync/pills/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetPillAnalysisAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-async-pill-${Environment}
+      Handler: analysis.async.pills.get
+      MemorySize: 512
+      Description: This function return pill.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/async/pills/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+  GetKeyMomentsSync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-key-moments-${Environment}
+      Handler: analysis.sync.key_moments.get
+      MemorySize: 512
+      Description: This function return key moments.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/sync/key-moments/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetKeyMomentsAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-key-moments-async${Environment}
+      Handler: analysis.async.key_moments.get
+      MemorySize: 512
+      Description: This function return key moments.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/async/key-moments/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+  GetOverallPsychSafetySync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-psych-safety-overall-sync-${Environment}
+      Handler: analysis.sync.psych_safety_overall.get
+      MemorySize: 512
+      Description: This function psych safety.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/sync/index/safety/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis  
+
+  GetOverallPsychSafetyAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-psych-safety-overall-async-${Environment}
+      Handler: analysis.async.psych_safety_overall.get
+      MemorySize: 512
+      Description: This function psych safety.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/async/index/safety/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetImmersionIndexContextBreakUp:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-immersion-breakup-sync-${Environment}
+      Handler: analysis.sync.immersion_breakup.get
+      MemorySize: 512
+      Description: This function immersion index context break up.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/sync/immersion/contex-breakup/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetImmersionIndexContextBreakUpAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-immersion-breakup-async-${Environment}
+      Handler: analysis.async.immersion_breakup.get
+      MemorySize: 512
+      Description: This function immersion index context break up.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/async/immersion/contex-breakup/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetSafetyIndexContextBreakUp:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-safety-breakup-sync-${Environment}
+      Handler: analysis.sync.safety_breakup.get
+      MemorySize: 512
+      Description: This function safety index context break up.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/sync/safety/contex-breakup/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetSafetyIndexContextBreakUpAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-safety-breakup-async-${Environment}
+      Handler: analysis.async.safety_breakup.get
+      MemorySize: 512
+      Description: This function safety index context break up.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/async/safety/contex-breakup/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetImmersionRangeSync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-immersion-range-sync-${Environment}
+      Handler: analysis.sync.immersion_range.get
+      MemorySize: 512
+      Description: This function immersion range.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/sync/immersion/range/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetImmersionRangeAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-immersion-range-async-${Environment}
+      Handler: analysis.async.safety_breakup.get
+      MemorySize: 512
+      Description: This function immersion ranges.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/async/immersion/range/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetSafetyRangeSync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-safety-range-sync-${Environment}
+      Handler: analysis.sync.safety_range.get
+      MemorySize: 512
+      Description: This function immersion range.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/sync/safety/range/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetImmersionRangeIndexSync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-immersion-range-index-sync-${Environment}
+      Handler: analysis.sync.immersion.get
+      MemorySize: 512
+      Description: This function immersion range.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/sync/immersion/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetImmersionRangeIndexAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-immersion-range-index-async-${Environment}
+      Handler: analysis.async.immersion.get
+      MemorySize: 512
+      Description: This function immersion score per epoch.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: AnalysisApi
+            Path: /v2/async/immersion/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+
+  GetPsychReadinessIndexSync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-sync-pysch-readiness-${Environment}
+      Handler: analysis.sync.safety-index.get
+      MemorySize: 1024
+      Description: This function will calculate psych and readiness index.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalysisApi
+            Path: /v2/sync/psych-readiness/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+  GetOverallImmersionIndexSync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-sync-immersion-overall-index-${Environment}
+      Handler: analysis.sync.immersion-overall-index.get
+      MemorySize: 512
+      Description: This function will calculate psych and readiness index.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalysisApi
+            Path: /v2/sync/index/immersion/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+  GetOverallImmersionIndexAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-async-immersion-overall-index-${Environment}
+      Handler: analysis.async.immersion-overall-index.get
+      MemorySize: 512
+      Description: This function will calculate overall immersion index.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalysisApi
+            Path: /v2/async/index/immersion/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+  GetPsychReadinessIndexAsync:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-async-pysch-readiness-${Environment}
+      Handler: analysis.async.safety-index.get
+      MemorySize: 1024
+      Description: This function will calculate psych and readiness index.
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: LambdaLayerxxhash
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalysisApi
+            Path: /v2/async/psych-readiness/{tenantId}/{sessionCode}
+            Method: POST
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis   
+  GetExportFile:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-immersion-export-${Environment}
+      Handler: analysis.export.export.get
+      MemorySize: 512
+      Description: This function will will export all data.      
+      Role:
+        Fn::GetAtt:
+        - LambdaExportBucketAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalysisApi
+            Path: /v2/export/{tenantId}/{sessionCode}
+            Method: GET
+      Environment:
+        Variables:
+          EXPORT_BUCKET: !Sub ${ExportBucketName}-${Environment}
+
+  GetBatchExportFile:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-immersion-export-batch-${Environment}
+      Handler: analysis.export.export_batch.handler
+      MemorySize: 512
+      Description: This function will batch export in zip file.      
+      Role:
+        Fn::GetAtt:
+        - LambdaExportBucketAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalysisApi
+            Path: /v2/export/{tenantId}
+            Method: POST
+      Environment:
+        Variables:
+          EXPORT_BUCKET: !Sub ${ExportBucketName}-${Environment}
+
+  GetClipCategoryBreakUp:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-analysis-clip-category-breakup-${Environment}
+      Handler: analysis.clip.category_breakup.get
+      MemorySize: 512
+      Description: This function will return category breakup(audience).
+      Layers:
+        - Fn::Join:
+          - ':'
+          - - arn:aws:lambda
+            - Ref: AWS::Region
+            - Ref: AWS::AccountId
+            - layer
+            - Ref: CoreDependenciesLayer
+      Role:
+        Fn::GetAtt:
+        - LambdaAnalysisAuthRole
+        - Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AnalysisApi
+            Path: /v2/clips/{tenantId}/{sessionCode}/{clipId}
+            Method: GET
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${MeasurementInfraStackName}-${Environment}-dynamodb-measurement
+          ASYNC_ACTIVITY_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-activity-tablename
+          ASYNC_MAPPING_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-mapping-tablename
+          ASYNC_SEQUENCE_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${AsyncInfraStackName}-${Environment}-dynamodb-async-sequence-tablename
+          ANALYSIS_TABLE:
+            Fn::ImportValue:
+              Fn::Sub: ${InfraStackName}-${Environment}-dynamodb-core-analysis
+          
+#   WebEndpoint:
+#     Description: "K"
+#     Value: !Sub "https://${DeviceService}.execute-api.${AWS::Region}.amazonaws.com/DeviceService-${Environment}/"
+#     Export:
+#       Name: !Sub "${AWS::StackName}-devapiendpoint"
+

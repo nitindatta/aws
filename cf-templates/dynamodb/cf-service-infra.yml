@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation Template for create creating core analysis statefull resources.
+Parameters:
+ 
+  Environment:
+    Type: String
+
+  CoreAnalysisTableName:
+    Type: String
+    Description: CoreAnalysisTableName
+    Default: core-analysis
+
+Resources:
+  #https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  AnalysisTable: 
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions: 
+        - 
+          AttributeName: "key"
+          AttributeType: "S"
+        - 
+           AttributeName: "calcts"
+           AttributeType: "N"
+
+      KeySchema:
+        - 
+          AttributeName: "key"
+          KeyType: "HASH"
+        - 
+          AttributeName: "calcts"
+          KeyType: "RANGE"
+
+      ProvisionedThroughput: 
+        ReadCapacityUnits: "60"
+        WriteCapacityUnits: "80"
+      TableName: !Sub ${CoreAnalysisTableName}-${Environment}
+
+  
+Outputs:
+  AnalysisTable:
+    Value: !Ref AnalysisTable
+    Export:
+      Name: !Sub "${AWS::StackName}-dynamodb-core-analysis"
+
+  SchedulerTableArn:
+    Value: !GetAtt AnalysisTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-dynamodb-core-analysis-arn"
+

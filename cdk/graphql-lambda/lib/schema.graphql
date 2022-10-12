@@ -1,0 +1,58 @@
+type Measurement {    
+    location:String!
+    order: Int!
+    readings:[Reading!]
+    notifications:[notification]
+}
+type Measure {    
+    time:String!
+    value: Float!
+    index: Int
+    color: String
+}
+type notification {
+  value: String
+}
+type Reading {
+    substance: String!
+    substanceKey: String!
+    group: String!
+    value: Float!
+    unit: String!
+    index: Int!
+    order: Int!
+    color: String!
+    count: Int! 
+    epochSince: Int 
+}
+input InputRequest {
+  location: String!
+  level: String!
+  index: Int
+  substanceKey: String
+}
+input QueryRequest {
+  location: String!
+  interval: String!
+  substanceKey: String!
+}
+input ThresholdRequest {  
+  substance: String
+}
+type Threshold {  
+  substance: String!
+  ranges:[Float]!
+}
+
+type Query {
+  getAggMeasurements(params:InputRequest!): [ Measurement! ]
+  @aws_auth(cognito_groups: ["admin"])
+  getDetailMeasurements(params:InputRequest!): [ Measurement! ]
+  @aws_auth(cognito_groups: ["admin"])
+  getLocationMeasurements(params:InputRequest!): [ Measurement! ]
+  @aws_auth(cognito_groups: ["admin"])
+  getSubstanceThresholds(params:ThresholdRequest): [ Threshold! ]
+  @aws_auth(cognito_groups: ["admin"])
+  getSusbtanceMeasurements(params:QueryRequest): [ Measure! ]
+  @aws_auth(cognito_groups: ["admin"])
+}

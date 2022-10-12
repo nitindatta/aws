@@ -1,0 +1,401 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This Template will provision API endpoints and Lambda Functions for device v2 service.
+
+Transform:
+- AWS::Serverless-2016-10-31
+
+Parameters:
+
+  LambdaLayers:
+    Description: Please enter Lambda Layer dependency
+    Type: String
+
+  Environment:
+    Type: String
+
+  Domain:
+    Type: String
+    Default: api.getimmersion.com
+
+  DeviceIngestionStreamName:
+    Type: String
+    Default: device-ingestion
+  
+  WellnessIngestionStreamName:
+    Type: String
+    Default: wellness-ingestion
+
+  IotEndpoint:
+    Description: IOT Endpoint
+    Type: String
+
+  IotQOS:
+    Description: IOT Endpoint
+    Type: String
+    Default: 0
+
+
+  TopicNamePrefix:
+    Description: Topic to publish
+    Type: String
+    Default: devices
+
+  DatabaseName:
+    Type: String
+    Default: device
+  
+  PemKey:
+    Type: String
+
+  InfraStackName:
+    Type: String
+    Default: services-device-infra 
+
+Globals:
+  Function:
+    # Layers:
+    #   - !Transform { "Name" : "CoreDependenciesLayer"}
+    Runtime: nodejs12.x
+    MemorySize: 256
+    Timeout: 101
+
+Resources:
+# This Api Gateway set up
+  # DomainApiMapping:
+  #   Type: 'AWS::ApiGateway::BasePathMapping'
+  #   Properties:
+  #     BasePath: v2
+  #     DomainName: !Sub ${Environment}-${Domain}
+  #     RestApiId: !Ref DeviceMeasurementService
+  #     Stage: !Sub api-device-reading-${Environment}
+
+  DeviceMeasurementService:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Sub api-device-reading-${Environment}
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - "*"
+        AllowMethods:
+          - "*"
+        MaxAge: 600
+        #AllowCredentials: True
+
+  LambdaAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSIoTDataAccess
+
+  LambdaMeasurementGetAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: 'DynamodbMeasurementTablePolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+                #- 'dynamodb:BatchWriteItem'
+                #- 'dynamodb:PutItem'
+                #- 'dynamodb:UpdateItem'
+              Resource: 
+                Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-measurement-arn"
+
+  DeviceDynamoDbActivityTableRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: 'DynamodbDeviceActivityTablePolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+                - 'dynamodb:BatchWriteItem'
+                - 'dynamodb:PutItem'
+                - 'dynamodb:UpdateItem'
+              Resource: 
+                Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-activity-tablearn"
+
+  DeviceDynamoDbScheduleTableRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: 'DynamodbDeviceScheduleTablePolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+                - 'dynamodb:BatchWriteItem'
+                - 'dynamodb:PutItem'
+                - 'dynamodb:UpdateItem'
+              Resource: 
+                Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-schedule-tablearn"
+
+  DeviceKinesisRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: 'DeviceKinesisRolePolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - 'kinesis:PutRecord'
+                - 'kinesis:PutRecords'
+              Resource: '*'
+                #Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-activity-tablearn"
+
+  SubmitDeviceReading:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-device-submit-reading-${Environment}
+      Handler: services/ingestion.submit
+      Description: This function will act as proxy for incoming device reading and route to IOT service.
+      Role: !GetAtt LambdaAuthRole.Arn
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DeviceMeasurementService
+            Path: /v2/devices/measurements/iot/{identifier}
+            Method: PUT
+            TimeoutInMillis: 3000
+      Environment:
+        Variables:
+          TOPIC_NAME_PREFIX: !Sub ${Environment}/devices/ingestion
+          IOT_ENDPOINT: !Ref IotEndpoint
+          IOT_QOS: !Ref IotQOS
+          PEM_KEY: !Ref PemKey
+  SubmitDeviceReadingKinesis:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-device-submit-reading-kinesis-${Environment}
+      Handler: services/ingestion-kinesis.submit
+      Description: This function will act as proxy for incoming device reading and route to IOT service.
+      Role: !GetAtt DeviceKinesisRole.Arn
+      Layers:
+        - !Join [ ":", [ "arn:aws:lambda", !Ref AWS::Region, !Ref AWS::AccountId,"layer",!Ref LambdaLayers  ] ]
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DeviceMeasurementService
+            Path: /v2/devices/measurements/{identifier}
+            Method: PUT
+            TimeoutInMillis: 3000
+      Environment:
+        Variables:
+          KINESIS_STREAM_NAME: !Sub ${DeviceIngestionStreamName}-${Environment}
+          KINESIS_WELLNESS_STREAM_NAME: !Sub ${WellnessIngestionStreamName}-${Environment}
+          PEM_KEY: !Ref PemKey
+          
+  GetDeviceMeasurement:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-device-GetZscore-${Environment}
+      Handler: services/measurement.getMeasurements
+      Description: This function will act as proxy for incoming device reading and route to IOT service.
+      Role: !GetAtt LambdaMeasurementGetAuthRole.Arn
+      Layers:
+        - !Join [ ":", [ "arn:aws:lambda", !Ref AWS::Region, !Ref AWS::AccountId,"layer",!Ref LambdaLayers  ] ]
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DeviceMeasurementService
+            Path: /v2/devices/measurements/{identifier}
+            Method: GET
+            TimeoutInMillis: 3000
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-measurement"
+          PEM_KEY: !Ref PemKey
+
+  CheckDeviceMeasurement:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-device-measurement-check-${Environment}
+      Handler: services/check-measurement.check
+      Description: This function will check if devices are sending measurements or not.
+      Role: !GetAtt LambdaMeasurementGetAuthRole.Arn
+      Layers:
+        - !Join [ ":", [ "arn:aws:lambda", !Ref AWS::Region, !Ref AWS::AccountId,"layer",!Ref LambdaLayers  ] ]
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DeviceMeasurementService
+            Path: /v2/devices/measurements/check
+            Method: GET
+            TimeoutInMillis: 3000
+      Environment:
+        Variables:
+          DEVICE_MEASUREMENT_TABLE:
+            Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-measurement"
+          PEM_KEY: !Ref PemKey
+
+  SubmitDeviceActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-device-SubmitActivity-${Environment}
+      Handler: services/device-activity.submitDeviceActivity
+      Description: This function will save device activity.
+      Role: !GetAtt DeviceDynamoDbActivityTableRole.Arn
+      Layers:
+        - !Join [ ":", [ "arn:aws:lambda", !Ref AWS::Region, !Ref AWS::AccountId,"layer",!Ref LambdaLayers  ] ]
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DeviceMeasurementService
+            Path: /v2/devices/activity/{identifier}
+            Method: PUT
+            TimeoutInMillis: 3000
+      Environment:
+        Variables:
+          DEVICE_ACTIVITY_TABLE:
+            Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-activity-tablename"
+          PEM_KEY: !Ref PemKey
+
+  GetDeviceActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-device-GetActivity-${Environment}
+      Handler: services/device-activity.getDeviceActivity
+      Description: This function will get device activity.
+      Role: !GetAtt DeviceDynamoDbActivityTableRole.Arn
+      Layers:
+        - !Join [ ":", [ "arn:aws:lambda", !Ref AWS::Region, !Ref AWS::AccountId,"layer",!Ref LambdaLayers  ] ]
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DeviceMeasurementService
+            Path: /v2/devices/activity/{identifier}
+            Method: GET
+            TimeoutInMillis: 6000
+      Environment:
+        Variables:
+          DEVICE_ACTIVITY_TABLE:
+            Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-activity-tablename"
+          PEM_KEY: !Ref PemKey
+
+  SubmitDeviceSchedule:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-device-submit-schedule-${Environment}
+      Handler: services/device-schedule.submitDeviceSchedule
+      Description: This function will save device activity.
+      Role: !GetAtt DeviceDynamoDbScheduleTableRole.Arn
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DeviceMeasurementService
+            Path: /v2/devices/schedule/{identifier}
+            Method: PUT
+            TimeoutInMillis: 3000
+      Environment:
+        Variables:
+          DEVICE_SCHEDULE_TABLE:
+            Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-schedule-tablename"
+          PEM_KEY: !Ref PemKey
+  GetDeviceSchedule:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub services-device-get-schedule-${Environment}
+      Handler: services/device-schedule.getDeviceSchedule
+      Description: This function will get device getDeviceSchedule.
+      Role: !GetAtt DeviceDynamoDbScheduleTableRole.Arn
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DeviceMeasurementService
+            Path: /v2/devices/schedule/{identifier}
+            Method: GET
+            TimeoutInMillis: 3000
+      Environment:
+        Variables:
+          DEVICE_SCHEDULE_TABLE:
+            Fn::ImportValue: !Sub "${InfraStackName}-${Environment}-dynamodb-schedule-tablename"
+          PEM_KEY: !Ref PemKey
+
+Outputs:
+  WebEndpoint:
+    Description: "API Gateway endpoint URL for different stage"
+    Value: !Sub "https://${DeviceMeasurementService}.execute-api.${AWS::Region}.amazonaws.com/DeviceMeasurementService-${Environment}/"
+    Export:
+      Name: !Sub "${AWS::StackName}-devapiendpoint"
